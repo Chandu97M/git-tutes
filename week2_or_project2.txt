@@ -1,0 +1,282 @@
+Welcome to Week 2. 
+
+Now that you've mastered the single-issue summarizer, we’re moving to the heart of 2026 
+
+AI development: RAG (Retrieval-Augmented Generation).While Project 1 focused on a single piece of data, Project 2 will build a 
+"Codebase Intelligence System." This allows you to ask questions like "Where is the authentication logic handled?" or 
+"How do I add a new API endpoint based on existing patterns?" across hundreds of files.
+
+1. The RAG Architecture (The Blueprint)In 2026,
+we don't just "dump" code into an AI. We follow a precise pipeline to ensure the AI only sees the most relevant snippets.
+
+2. Your Project 2 StackFor this project, we will use LlamaIndex. 
+In 2026, while LangChain is great for general logic, LlamaIndex is the gold standard for "Data-to-AI" 
+connections because it handles code structure better.ComponentTool (2026 Standard)Why?OrchestrationLlamaIndexSuperior indexing for 
+hierarchical data like code.Vector DBChromaDBLightweight, open-source, 
+and runs locally.Embeddingstext-embedding-3-smallFast, cheap, and understands technical syntax.IntelligenceGemini 2.0 FlashMassive context window to handle large code snippets.
+
+
+3. The "Code-Aware" Syllabus (Week 2)Day 1: The "Embedding" Mental ModelConcepts: Understand that "Semantic Search" doesn't 
+look for keywords; it looks for intent.
+Exercise: Use Python to turn a function name into a vector (a list of numbers) and see how it "clusters" 
+near similar functions.Day 2: Advanced Code ChunkingThe Problem: If you split a Python file in the middle of a class, 
+the AI loses the context.The Solution: Use Syntax-Aware Chunking. We will use llama-index to split code based on function and class 
+definitions rather than just character counts.Day 3: Building the Vector IndexAction: Write a script to scan your local project folder, 
+ignore .git and __pycache__, and store the "embeddings" in ChromaDB.Goal: Create a persistent database on your laptop that "remembers" your code.
+
+Day 4: The Query EngineAction: Connect your FastAPI knowledge from Week 1 to a LlamaIndex "Query Engine."Goal: Create an 
+endpoint /ask-code?q=how+does+auth+work that retrieves the right files and explains them.4. Why this makes you a "GenAI Engineer"Most developers 
+just paste code into ChatGPT. A GenAI Engineer builds the infrastructure so the AI can "search" thousands of files autonomously. 
+By the end of this week, you will have built a private, local version of Cursor or GitHub Copilot Chat for your own projects.Ready to start Day 1 of Week 2?Would you like the "Day 1" starter code to begin indexing your local Python files right now?
+
+
+
+
+
+In 2026, the industry standard for RAG (Retrieval-Augmented Generation) has shifted from simple text matching to Contextual Code Retrieval.
+
+To begin Day 1 of Week 2, we are going to build your Indexing Pipeline. This is the process of taking your local Python files and turning them into "Searchable Intelligence" for the AI.
+
+1. The Day 1 Workflow
+Today, we focus on the Ingestion stage. We won't build the chatbot yet; we are building the "Brain" (The Vector Index).
+
+2. Setup Your Environment
+We need the 2026 versions of the LlamaIndex integration for Gemini and ChromaDB.
+
+Bash
+# Core LlamaIndex + Google Gemini + ChromaDB + File Readers
+pip install llama-index-core llama-index-llms-google-genai \
+            llama-index-embeddings-google-genai llama-index-vector-stores-chroma \
+            llama-index-readers-file chromadb
+3. The Starter Code: "Local Repo Indexer"
+This script scans your directory, ignores non-python files, and builds a persistent database on your computer.
+
+Python
+import os
+from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, StorageContext, Settings
+from llama_index.vector_stores.chroma import ChromaVectorStore
+from llama_index.embeddings.google_genai import GeminiEmbedding
+from llama_index.llms.google_genai import GoogleGenAI
+import chromadb
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# 1. CONFIGURE MODELS (The 2026 Global Settings)
+# We use Gemini for both Thinking (LLM) and Searching (Embeddings)
+Settings.llm = GoogleGenAI(model="models/gemini-2.0-flash")
+Settings.embed_model = GeminiEmbedding(model_name="models/text-embedding-004")
+
+def build_codebase_index(repo_path: str):
+    # 2. LOAD DATA
+    # SimpleDirectoryReader scans the folder. 
+    # required_exts ensures we only read Python files.
+    reader = SimpleDirectoryReader(
+        input_dir=repo_path,
+        recursive=True,
+        required_exts=[".py"],
+        exclude_hidden=True
+    )
+    documents = reader.load_data()
+    print(f"Loaded {len(documents)} Python files.")
+
+    # 3. SETUP LOCAL STORAGE (ChromaDB)
+    # This creates a folder called './chroma_db' where your 'brain' lives.
+    db = chromadb.PersistentClient(path="./chroma_db")
+    chroma_collection = db.get_or_create_collection("my_codebase")
+    
+    vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
+    storage_context = StorageContext.from_defaults(vector_store=vector_store)
+
+    # 4. INDEXING
+    # This sends your code to Gemini to turn it into math (vectors)
+    index = VectorStoreIndex.from_documents(
+        documents, 
+        storage_context=storage_context,
+        show_progress=True
+    )
+    
+    print("Indexing Complete! Database saved to ./chroma_db")
+    return index
+
+# RUN IT
+if __name__ == "__main__":
+    # Replace with the path to your real project
+    MY_PROJECT_PATH = "./my_git_project" 
+    build_codebase_index(MY_PROJECT_PATH)
+4. Key "Developer" Insights for Day 1
+Why text-embedding-004? In 2026, this model is specifically tuned to understand code syntax. It knows that def in Python is related to a "Function" or "Action."
+
+ChromaDB Persistence: Notice PersistentClient. This means you only have to index your code once. Tomorrow, we can just load the database and start asking questions instantly without paying for embeddings again.
+
+Privacy: Since this is a local vector store, your code remains on your machine. Only the "Vectors" (numbers) and the specific chunks used for answering questions are sent to the AI API.
+
+5. Your Task for Today
+Run the code above on your local machine.
+
+Point it at a small Python project you have.
+
+Check that a folder named ./chroma_db was created.
+
+Would you like me to show you how to "Query" this database tomorrow so you can ask your first question like "What is the main entry point of this project?"
+
+
+
+
+Today, we move from Ingestion (storing your code) to Retrieval (asking it questions).
+
+Since you’ve already built the local ./chroma_db folder, we don’t need to re-index your code every time you run a query. This is the Day 2 secret: Loading a persistent index to get instant, "zero-cost" retrieval.
+
+1. The Query Pipeline Flow
+In 2026, we focus on Synthesized Responses. The AI doesn't just show you code; it "reasons" through the chunks to provide a full explanation.
+
+2. The Day 2 Code: "Codebase Query Engine"
+This script connects to your existing database and sets up a Streaming Query Engine. Streaming is essential because it makes the AI feel much faster by showing text as it is generated.
+
+Python
+import os
+import chromadb
+from llama_index.core import VectorStoreIndex, StorageContext, Settings
+from llama_index.vector_stores.chroma import ChromaVectorStore
+from llama_index.embeddings.google_genai import GeminiEmbedding
+from llama_index.llms.google_genai import GoogleGenAI
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# 1. SETUP MODELS (Must match Day 1 settings)
+Settings.llm = GoogleGenAI(model="models/gemini-2.0-flash")
+Settings.embed_model = GeminiEmbedding(model_name="models/text-embedding-004")
+
+def query_my_codebase(user_query: str):
+    # 2. CONNECT TO PERSISTENT STORAGE
+    db = chromadb.PersistentClient(path="./chroma_db")
+    chroma_collection = db.get_or_create_collection("my_codebase")
+    
+    # 3. LOAD THE INDEX
+    vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
+    index = VectorStoreIndex.from_vector_store(vector_store)
+
+    # 4. CREATE STREAMING ENGINE
+    # similarity_top_k=5 means the AI looks at the 5 most relevant code snippets
+    query_engine = index.as_query_engine(streaming=True, similarity_top_k=5)
+
+    # 5. EXECUTE & STREAM
+    print(f"\nQuerying: {user_query}\n" + "-"*30)
+    response = query_engine.query(user_query)
+    
+    # Print the response word-by-word
+    response.print_response_stream()
+    return response
+
+if __name__ == "__main__":
+    # Example Questions to try:
+    # 1. "Explain the high-level architecture of this project."
+    # 2. "Find all functions related to authentication."
+    # 3. "How do I add a new API endpoint following current patterns?"
+    
+    query = input("Ask a question about your code: ")
+    query_my_codebase(query)
+3. Key Insights for Your Development
+Semantic vs. Keyword: If you ask "How does auth work?", the AI won't just look for the word "auth." It will look for JWT, login, decorators, and sessions because it understands the meaning of the word.
+
+The "Context" Advantage: Notice similarity_top_k=5. You can increase this if your project is huge, but 5 is usually the "sweet spot" for balancing accuracy and speed.
+
+Streaming Logic: In Week 4, we will take this print_response_stream() and turn it into a FastAPI SSE (Server-Sent Events) endpoint so your web application can stream text just like ChatGPT.
+
+4. Your Task for Today
+Run the Query Engine on the project you indexed yesterday.
+
+Ask a question that involves logic across two different files (e.g., "How does the main script call the helper functions?").
+
+Observe how the AI cites specific filenames in its explanation.
+
+Would you like me to show you how to add a "Source Citation" feature, so the AI tells you exactly which files and line numbers it used to generate the answer?
+
+
+
+
+
+
+To truly act like a GenAI Engineer, you need to ensure your AI is transparent. In 2026, "Source Citations" are the best way to prevent hallucinations and build trust with your users.
+
+Instead of the AI just saying, "The auth logic is in auth.py," we want it to say: "The auth logic is handled in the validate_token function [Source 1], which checks the JWT expiration [Source 2]."
+
+1. The Citation Workflow
+We will use the CitationQueryEngine. This is a specialized LlamaIndex engine that automatically breaks your code into "numbered nodes" and forces the LLM to reference them.
+
+[2] citations -> 5. Final response with clickable file paths.]
+
+2. The Day 2 Upgrade: Code with Citations
+This script loads your existing ./chroma_db and uses the specialized CitationQueryEngine.
+
+Python
+import os
+import chromadb
+from llama_index.core import VectorStoreIndex, StorageContext, Settings
+from llama_index.vector_stores.chroma import ChromaVectorStore
+from llama_index.embeddings.google_genai import GeminiEmbedding
+from llama_index.llms.google_genai import GoogleGenAI
+from llama_index.core.query_engine import CitationQueryEngine
+
+# 1. SETUP (Must be consistent with Day 1)
+Settings.llm = GoogleGenAI(model="models/gemini-2.0-flash")
+Settings.embed_model = GeminiEmbedding(model_name="models/text-embedding-004")
+
+def query_with_sources(user_query: str):
+    # 2. LOAD STORED INDEX
+    db = chromadb.PersistentClient(path="./chroma_db")
+    chroma_collection = db.get_or_create_collection("my_codebase")
+    vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
+    index = VectorStoreIndex.from_vector_store(vector_store)
+
+    # 3. CONFIGURE CITATION ENGINE
+    # citation_chunk_size: How small the cited snippets should be
+    query_engine = CitationQueryEngine.from_args(
+        index,
+        similarity_top_k=3,
+        citation_chunk_size=512, 
+        streaming=True
+    )
+
+    # 4. EXECUTE
+    response = query_engine.query(user_query)
+    
+    print(f"\nAI RESPONSE:\n" + "="*30)
+    response.print_response_stream()
+    
+    # 5. PRINT THE ACTUAL SOURCE METADATA
+    print(f"\n\nSOURCES USED:\n" + "-"*30)
+    for i, node in enumerate(response.source_nodes):
+        # Accessing the metadata we saved during Day 1
+        file_name = node.node.metadata.get("file_name", "Unknown")
+        file_path = node.node.metadata.get("file_path", "Unknown")
+        
+        print(f"[{i+1}] File: {file_name}")
+        print(f"    Path: {file_path}")
+        # print(f"    Snippet: {node.node.get_content()[:100]}...") # Optional: see the text
+
+if __name__ == "__main__":
+    query = input("Ask about your code (e.g., 'How is the API secured?'): ")
+    query_with_sources(query)
+3. Why this is a "GenAI Engineer" Pattern
+Verification: You can now verify if the AI is "making things up." If it cites [1], you can look at the Sources Used section and see exactly which file it read.
+
+Metadata Power: Notice node.node.metadata. During Day 1's SimpleDirectoryReader step, LlamaIndex automatically extracted the file_path. We are now surfacing that hidden data to the user.
+
+Contextual Integrity: By setting a citation_chunk_size, you ensure the AI doesn't just "see" the whole file, but focuses on the specific 512 characters that answer the question.
+
+4. Your Task for Today
+Run the citation script.
+
+Ask: "Which file contains the main logic for my project?"
+
+Check if the AI correctly places a [1] in its sentence and if the Sources Used list matches your file structure.
+
+Now that you can query your code with citations, would you like to move to Day 3: Syntax-Aware Chunking? This is where we teach the AI to understand the difference between a "Function" and just a "Random block of text," making its answers much smarter.
+
+
+
+
+
+
