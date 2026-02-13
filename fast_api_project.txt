@@ -1,0 +1,119 @@
+Building a production-ready authentication system in FastAPI involves a blend of security (password hashing, JWT) and state management (OTP in Redis).
+
+Below is the Clean Architecture project structure and code for all five of your requirements.
+
+1. Project Structure (The "Pro" Setup)
+Organize your files so the project can scale. In 2026, we separate schemas (validation) from models (database) and services (business logic).
+
+Plaintext
+fastapi_auth_project/
+├── app/
+│   ├── api/             # Routes (Login, Profile, OTP)
+│   ├── core/            # Security (JWT, Hashing, Redis config)
+│   ├── models/          # Database Tables (SQLAlchemy/SQLModel)
+│   ├── schemas/         # Pydantic Validation
+│   ├── services/        # Business Logic (OTP Logic, Emailing)
+│   └── main.py          # Entry Point
+├── .env                 # Secrets (Key, Database URL)
+├── Dockerfile           # Production container
+└── requirements.txt     # Dependencies
+2. The Core Logic (Code Implementation)
+A. Required Libraries
+Plaintext
+fastapi[standard]
+sqlalchemy
+pydantic-settings
+passlib[bcrypt]
+python-jose[cryptography]
+redis
+python-multipart
+B. Requirement 1 & 2: Login & OTP (The "Agent" Logic)
+We use Redis to store OTPs because it has a built-in "TTL" (Time to Live), meaning the OTP automatically deletes itself after 5 minutes.
+
+Python
+# app/services/otp_service.py
+import redis
+import random
+from app.core.config import settings
+
+redis_conn = redis.from_url(settings.REDIS_URL)
+
+async def send_and_store_otp(email: str):
+    otp = str(random.randint(100000, 999999))
+    # Set OTP with 300 second (5 min) expiry
+    redis_conn.setex(f"otp:{email}", 300, otp)
+    
+    # Mock sending email (In production, use SendGrid/FastAPI-Mail)
+    print(f"DEBUG: OTP for {email} is {otp}")
+    return {"message": "OTP sent successfully"}
+
+async def verify_otp(email: str, provided_otp: str):
+    stored_otp = redis_conn.get(f"otp:{email}")
+    if stored_otp and stored_otp.decode() == provided_otp:
+        redis_conn.delete(f"otp:{email}") # Delete after successful use
+        return True
+    return False
+C. Requirement 3 & 4: Forgot Password & Authenticated Profile
+For profile updates, we use a Dependency Injection called get_current_user to ensure only the owner can edit their data.
+
+Python
+# app/api/routes.py
+from fastapi import APIRouter, Depends, HTTPException
+from app.core.security import get_password_hash, get_current_user
+
+router = APIRouter()
+
+@app.put("/profile/update")
+async def update_profile(
+    new_data: ProfileUpdateSchema, 
+    current_user: User = Depends(get_current_user)
+):
+    # current_user is automatically verified via JWT
+    user_db = db.query(User).filter(User.id == current_user.id).first()
+    user_db.username = new_data.username
+    db.commit()
+    return {"msg": "Profile updated"}
+
+@app.post("/password/forgot")
+async def forgot_password(email: str, otp: str, new_password: str):
+    if await verify_otp(email, otp):
+        user = db.query(User).filter(User.email == email).first()
+        user.hashed_password = get_password_hash(new_password)
+        db.commit()
+        return {"msg": "Password reset successful"}
+    raise HTTPException(status_code=400, detail="Invalid OTP")
+3. Requirement 5: Deployment Steps (Zero to Production)
+Step 1: Dockerize the App
+Create a Dockerfile to ensure your app runs the same way on any server.
+
+Dockerfile
+FROM python:3.11-slim
+WORKDIR /code
+COPY ./requirements.txt /code/requirements.txt
+RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+COPY ./app /code/app
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80"]
+Step 2: Set Up Infrastructure
+In 2026, the industry standard is to use Managed Services:
+
+Database: Use PostgreSQL (AWS RDS or Supabase) for user data.
+
+Cache: Use Redis (Upstash or Redis Cloud) for OTPs.
+
+Step 3: Deployment Flow
+Push to GitHub: Your code should trigger a GitHub Action.
+
+Build Image: GitHub Action builds the Docker image and pushes it to a Registry (like DockerHub).
+
+Cloud Run / Render: Deploy the image.
+
+Tip: Ensure your Environment Variables (SECRET_KEY, DATABASE_URL) are added to the cloud dashboard, NOT the code.
+
+Summary of Features
+Login: Standard OAuth2 Password flow + JWT tokens.
+
+OTP: Stateful verification using Redis for speed and auto-expiry.
+
+Security: Passwords are hashed using bcrypt, never stored in plain text.
+
+Would you like me to generate the full core/security.py file with the JWT logic and password hashing included?
