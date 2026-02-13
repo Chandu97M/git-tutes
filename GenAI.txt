@@ -1,0 +1,129 @@
+1. Required Libraries
+Create a file named requirements.txt:
+
+Plaintext
+fastapi[standard]
+google-genai
+pydantic
+requests
+python-dotenv
+uvicorn
+Install them using: pip install -r requirements.txt
+
+2. The Production-Ready Code (main.py)
+This code includes validation, error handling, and the Gemini 2.0 Flash integration.
+
+Python
+import os
+import requests
+from typing import Optional
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+from google import genai
+from google.genai import types
+from dotenv import load_dotenv
+
+# Load API Keys from .env file
+load_dotenv()
+
+# 1. Define the Data Structure (Schema)
+class IssueResponse(BaseModel):
+    title: str
+    bug_summary: str = Field(description="A concise summary of the issue.")
+    severity: str = Field(description="Low, Medium, or High.")
+    suggested_fix: str = Field(description="Code-level suggestion to fix the bug.")
+
+# 2. Initialize FastAPI and Gemini Client
+app = FastAPI(title="GitHub GenAI Summarizer")
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+# 3. Helper function to fetch GitHub data
+def fetch_github_issue(owner: str, repo: str, issue_number: int):
+    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}"
+    headers = {"Accept": "application/vnd.github.v3+json"}
+    
+    # In production, use a GITHUB_TOKEN to avoid rate limits
+    token = os.getenv("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"token {token}"
+        
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        raise HTTPException(status_code=404, detail="GitHub Issue not found")
+    return response.json()
+
+# 4. The API Endpoint
+@app.get("/summarize/{owner}/{repo}/{issue_id}", response_model=IssueResponse)
+async def get_summary(owner: str, repo: str, issue_id: int):
+    """
+    Execution Flow:
+    1. Receives request -> 2. Fetches GitHub Data -> 3. Sends to Gemini -> 4. Returns JSON
+    """
+    # Fetch data
+    issue_data = fetch_github_issue(owner, repo, issue_id)
+    raw_content = f"Title: {issue_data['title']}\nBody: {issue_data['body']}"
+
+    try:
+        # AI Logic with Gemini 2.0 Flash
+        ai_response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=f"Analyze this technical issue and summarize it professionally: {raw_content}",
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=IssueResponse,
+            ),
+        )
+        
+        # Merge GitHub title with AI summary
+        result = IssueResponse.model_validate_json(ai_response.text)
+        result.title = issue_data['title'] # Ensure title matches exactly
+        return result
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI Processing failed: {str(e)}")
+
+# 5. Health Check (Required for Production Deployment)
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
+3. How to run this locally
+Environment Variables: Create a .env file:
+
+Code snippet
+GEMINI_API_KEY=your_key_here
+GITHUB_TOKEN=optional_github_token
+Run Server:
+
+Bash
+uvicorn main:app --reload
+Test in Browser: Go to http://127.0.0.1:8000/docs. FastAPI automatically generates an interactive UI where you can click "Try it out" and enter repo details.
+
+4. How to deploy this to Production
+To move this into a real-world application, follow these steps:
+
+Step A: Containerize with Docker
+Create a Dockerfile:
+
+Dockerfile
+FROM python:3.11-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80"]
+Step B: Choose a Platform
+In 2026, the most common deployment paths for GenAI Python apps are:
+
+Render / Railway / Koyeb: Best for simple "Git Push" deployments. Just connect your GitHub repo, and they handle the rest.
+
+Google Cloud Run: Since you used Gemini, this is highly optimized. It scales to zero when not in use, saving you money.
+
+Vercel (via Python Runtime): Great if your frontend is also on Vercel.
+
+5. Execution Flow (Diagram)
+6. Production Tips for 2026
+Security: Never hardcode your GEMINI_API_KEY. Always use the os.getenv method shown above.
+
+Timeouts: AI responses can take 2–5 seconds. Ensure your frontend (React/Next.js) has a timeout longer than 10 seconds.
+
+Rate Limiting: If this is a public app, add a library like slowapi to prevent users from spamming your AI and costing you money.
